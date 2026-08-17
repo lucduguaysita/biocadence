@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Editors
+.idea/
+.vscode/
+
+# BioCadence working files: recordings, models and fingerprints are personal.
+# Keep them out of version control (the examples/ folder is committed on purpose).
+/me.jsonl
+/me.model.json
+/me.pointer.pt
+/fingerprint.json
+/report.html
+/plan.json
+/profiles/
+/demo_out/
+
+# Local publish helpers (not part of the project).
+/publish.ps1
+/publish.bat
+/release_notes.md

@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Input style model</title>
+<style>
+  :root{
+    --plane:#0d0d0d; --surface-1:#1a1a19; --text-primary:#ffffff;
+    --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835;
+    --series-1:#3987e5; --series-2:#d95926; --border:rgba(255,255,255,0.10);
+  }
+  :root[data-theme="light"]{
+    --plane:#f9f9f7; --surface-1:#fcfcfb; --text-primary:#0b0b0b;
+    --text-secondary:#52514e; --muted:#898781; --grid:#e1e0d9; --axis:#c3c2b7;
+    --series-1:#2a78d6; --series-2:#eb6834; --border:rgba(11,11,11,0.10);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--plane);color:var(--text-primary);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.45}
+  .wrap{max-width:1120px;margin:0 auto;padding:28px 20px 64px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  h1{font-size:22px;margin:0 0 2px}
+  .sub{color:var(--text-secondary);font-size:13.5px;margin:0}
+  button#theme{background:var(--surface-1);color:var(--text-secondary);
+    border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;cursor:pointer}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:22px 0 8px}
+  .tile{background:var(--surface-1);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .tile .v{font-size:26px;font-weight:650;letter-spacing:-.01em}
+  .tile .l{font-size:12px;color:var(--text-secondary);margin-top:3px}
+  .tile .u{font-size:14px;color:var(--muted);font-weight:500;margin-left:3px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  .card{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:16px 16px 10px}
+  .card h2{font-size:14.5px;margin:0 0 2px}
+  .card p{font-size:12.5px;color:var(--text-secondary);margin:0 0 8px}
+  .card.wide{grid-column:1 / -1}
+  svg{width:100%;height:auto;display:block}
+  .ax{fill:var(--muted);font-size:11px}
+  .axtitle{fill:var(--text-secondary);font-size:11.5px}
+  .legend{display:flex;gap:16px;font-size:12px;color:var(--text-secondary);margin:2px 2px 8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  #tip{position:fixed;pointer-events:none;opacity:0;transform:translate(-50%,-120%);
+    background:var(--text-primary);color:var(--plane);font-size:12px;padding:5px 8px;
+    border-radius:7px;white-space:nowrap;transition:opacity .08s;z-index:9;font-variant-numeric:tabular-nums}
+  @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="rptTitle">Input style model</h1>
+      <p class="sub" id="rptSub">Sampled from your fitted keystroke, click and mouse-motion distributions.</p>
+    </div>
+    <button id="theme">Light</button>
+  </header>
+  <div class="kpis" id="kpis"></div>
+  <div class="grid">
+    <div class="card wide">
+      <h2>Typing rhythm</h2>
+      <p>Each mark is a keystroke; bar height is how long the key was held. Wide gaps are think-time; orange marks follow a pause past the fence.</p>
+      <div id="strip"></div>
+    </div>
+    <div class="card">
+      <h2>Inter-key interval</h2>
+      <p>Press-to-press gaps. The cluster is fluent typing; the tail past the dashed fence is think-time.</p>
+      <div id="intervals"></div>
+    </div>
+    <div class="card">
+      <h2>Key hold (dwell)</h2>
+      <p>How long each key stays down.</p>
+      <div id="dwell"></div>
+    </div>
+    <div class="card">
+      <h2>Pause likelihood by context</h2>
+      <p>Chance of inserting a think-pause, by what precedes the key.</p>
+      <div id="pause"></div>
+    </div>
+    <div class="card">
+      <h2>Mouse move time vs distance</h2>
+      <p>Longer moves take longer, sub-linearly. The line is the fitted a + b*sqrt(distance).</p>
+      <div id="fitts"></div>
+    </div>
+    <div class="card wide">
+      <h2>Sampled mouse paths</h2>
+      <p>Two draws from the same start to the same target: curved approach, tremor, and occasional overshoot.</p>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>path A</span><span><i style="background:var(--series-2)"></i>path B</span></div>
+      <div id="traj"></div>
+    </div>
+  </div>
+  <p class="sub" style="margin-top:22px">Model summary: <span id="metatext"></span></p>
+</div>
+<div id="tip"></div>
+<script>
+const DATA = {"meta": {"n_keys": 191, "n_clicks": 14, "n_move_segments": 14}, "fence_ms": 275.0, "kpis": {"wpm": 71.6, "median_gap": 132.0, "median_dwell": 85.0, "click_ms": 66.0, "overshoot_pct": 43.0}, "interval_hist": {"counts": [0, 0, 3, 7, 37, 40, 38, 21, 10, 5, 4, 1, 1, 2, 0, 0, 0, 4, 0, 1, 1, 2, 0, 0, 1, 0, 0, 0, 2, 4], "edges": [0.0, 21.7, 43.3, 65.0, 86.7, 108.3, 130.0, 151.7, 173.3, 195.0, 216.7, 238.3, 260.0, 281.7, 303.3, 325.0, 346.7, 368.3, 390.0, 411.7, 433.3, 455.0, 476.7, 498.3, 520.0, 541.7, 563.3, 585.0, 606.7, 628.3, 650.0]}, "dwell_hist": {"counts": [0, 0, 1, 1, 0, 1, 9, 9, 15, 25, 23, 21, 16, 18, 10, 9, 3, 7, 5, 3, 2, 1, 2, 4], "edges": [0.0, 7.4, 14.9, 22.3, 29.8, 37.2, 44.7, 52.1, 59.6, 67.0, 74.5, 81.9, 89.4, 96.8, 104.3, 111.7, 119.1, 126.6, 134.0, 141.5, 148.9, 156.4, 163.8, 171.3, 178.7]}, "pause_prob": {"mid": 0.054, "word": 0.315, "clause": 0.167, "sentence": 0.5}, "strip": {"marks": [{"c": "t", "t": 0.0, "dwell": 115.23384956460896, "gap": null, "pause": false}, {"c": "y", "t": 137.75297745056818, "dwell": 105.51059806240524, "gap": 137.75297745056818, "pause": false}, {"c": "p", "t": 279.75446961544816, "dwell": 135.8700222613952, "gap": 142.00149216487995, "pause": false}, {"c": "e", "t": 747.9010984984069, "dwell": 85.90023037748318, "gap": 468.1466288829588, "pause": true}, {"c": "_", "t": 839.8061976083428, "dwell": 78.77796811981163, "gap": 91.90509910993595, "pause": false}, {"c": "l", "t": 1278.8865258853561, "dwell": 75.60517771691467, "gap": 439.0803282770133, "pause": true}, {"c": "i", "t": 1396.9832275686751, "dwell": 70.22389848434484, "gap": 118.09670168331898, "pause": false}, {"c": "k", "t": 1574.2988394943345, "dwell": 60.26654363756712, "gap": 177.31561192565937, "pause": false}, {"c": "e", "t": 1651.311389326869, "dwell": 67.1628579912562, "gap": 77.01254983253448, "pause": false}, {"c": "_", "t": 1776.7178301889735, "dwell": 85.83940319415761, "gap": 125.4064408621045, "pause": false}, {"c": "a", "t": 2080.676709540868, "dwell": 51.69336471243069, "gap": 303.9588793518948, "pause": true}, {"c": "_", "t": 2308.807566607861, "dwell": 103.55099739700569, "gap": 228.1308570669931, "pause": false}, {"c": "h", "t": 2424.8600162232983, "dwell": 101.59514044046335, "gap": 116.05244961543715, "pause": false}, {"c": "u", "t": 2554.8489693248707, "dwell": 75.2044389407418, "gap": 129.98895310157232, "pause": false}, {"c": "m", "t": 2678.8156127112807, "dwell": 94.93734653964347, "gap": 123.96664338640973, "pause": false}, {"c": "a", "t": 2808.344554774548, "dwell": 48.81724911409613, "gap": 129.5289420632675, "pause": false}, {"c": "n", "t": 2955.9361944609727, "dwell": 106.4243869268764, "gap": 147.59163968642451, "pause": false}, {"c": ".", "t": 3085.972124866294, "dwell": 84.6792806623271, "gap": 130.03593040532158, "pause": false}, {"c": "_", "t": 3246.1342777315176, "dwell": 109.95717185521059, "gap": 160.16215286522328, "pause": false}, {"c": "p", "t": 3689.4538165707872, "dwell": 109.63391236087716, "gap": 443.3195388392699, "pause": true}, {"c": "a", "t": 3825.141926091114, "dwell": 37.36353352123744, "gap": 135.6881095203266, "pause": false}, {"c": "u", "t": 3958.2523225952527, "dwell": 88.87822445804794, "gap": 133.1103965041387, "pause": false}, {"c": "s", "t": 4112.395395512391, "dwell": 104.94083081109463, "gap": 154.14307291713845, "pause": false}, {"c": "e", "t": 4286.515291872224, "dwell": 60.85074245919042, "gap": 174.11989635983272, "pause": false}, {"c": "s", "t": 4976.786912189064, "dwell": 90.67876164685451, "gap": 690.2716203168407, "pause": true}, {"c": "_", "t": 5048.805692718297, "dwell": 79.46355315472076, "gap": 72.01878052923227, "pause": false}, {"c": "m", "t": 5234.804194743273, "dwell": 62.012761755846135, "gap": 185.99850202497592, "pause": false}, {"c": "a", "t": 5327.169960830586, "dwell": 82.73941059598843, "gap": 92.36576608731362, "pause": false}, {"c": "k", "t": 5433.989920716655, "dwell": 99.10472315967755, "gap": 106.81995988606907, "pause": false}, {"c": "e", "t": 5576.813383384061, "dwell": 79.79647631236642, "gap": 142.82346266740564, "pause": false}, {"c": "_", "t": 5690.18265033672, "dwell": 113.72949443859514, "gap": 113.36926695265959, "pause": false}, {"c": "i", "t": 5751.657200329519, "dwell": 75.09240274467466, "gap": 61.474549992798444, "pause": false}, {"c": "t", "t": 5838.6171750799285, "dwell": 75.87788151982, "gap": 86.95997475040951, "pause": false}, {"c": "_", "t": 5993.675495083134, "dwell": 103.7016757012239, "gap": 155.05832000320564, "pause": false}, {"c": "r", "t": 6212.440603071722, "dwell": 53.47604182433319, "gap": 218.76510798858817, "pause": false}, {"c": "e", "t": 6297.39698674193, "dwell": 72.68079591729747, "gap": 84.95638367020763, "pause": false}, {"c": "a", "t": 6402.873108724012, "dwell": 56.15731252984979, "gap": 105.47612198208256, "pause": false}, {"c": "l", "t": 6560.802537156126, "dwell": 91.92832327884037, "gap": 157.92942843211398, "pause": false}, {"c": ".", "t": 6692.8683714711, "dwell": 71.74310683513508, "gap": 132.06583431497342, "pause": false}], "total": 6764.611478306235, "fence_ms": 275.0}, "fitts": {"points": [{"d": 25.0, "t": 248.42762829635535}, {"d": 25.0, "t": 217.42324232672922}, {"d": 27.453362472147095, "t": 226.24487500136183}, {"d": 27.453362472147095, "t": 154.73903358538732}, {"d": 30.147484441083773, "t": 349.249542525667}, {"d": 30.147484441083773, "t": 308.8999339675864}, {"d": 33.105992719379486, "t": 239.38975443569353}, {"d": 33.105992719379486, "t": 294.11058122845543}, {"d": 36.354832725015505, "t": 273.8393186237116}, {"d": 36.354832725015505, "t": 234.195698252982}, {"d": 39.92249601656502, "t": 318.72725023614174}, {"d": 39.92249601656502, "t": 250.40932173724002}, {"d": 43.840270157424314, "t": 255.0861751108754}, {"d": 43.840270157424314, "t": 233.88526812810554}, {"d": 48.14251310034491, "t": 302.13060037528436}, {"d": 48.14251310034491, "t": 272.3471255684425}, {"d": 52.866954498554335, "t": 314.4407062096511}, {"d": 52.866954498554335, "t": 253.39790917892702}, {"d": 58.05502658589275, "t": 297.6723085388319}, {"d": 58.05502658589275, "t": 245.95206017620603}, {"d": 63.75222752770598, "t": 348.60662670566865}, {"d": 63.75222752770598, "t": 308.4532535991077}, {"d": 70.00852042899623, "t": 324.70764545647705}, {"d": 70.00852042899623, "t": 329.6050096276677}, {"d": 76.87877149903794, "t": 259.026013028454}, {"d": 76.87877149903794, "t": 362.4533924464344}, {"d": 84.42323121505837, "t": 472.0805580178396}, {"d": 84.42323121505837, "t": 236.30556042002632}, {"d": 92.70806270467516, "t": 238.50243272198213}, {"d": 92.70806270467516, "t": 248.74758994726403}, {"d": 101.80592198087948, "t": 396.5008539773517}, {"d": 101.80592198087948, "t": 346.955385045495}, {"d": 111.7965951180885, "t": 425.9848072883004}, {"d": 111.7965951180885, "t": 398.5164756113959}, {"d": 122.7676979571502, "t": 372.3298732579224}, {"d": 122.7676979571502, "t": 377.4880584131001}, {"d": 134.8154444755486, "t": 356.72633027334683}, {"d": 134.8154444755486, "t": 433.2894885493082}, {"d": 148.04549056123415, "t": 306.77852515667456}, {"d": 148.04549056123415, "t": 350.2660477966965}, {"d": 162.57386058977556, "t": 408.5632734892097}, {"d": 162.57386058977556, "t": 547.0379001178809}, {"d": 178.52796493069678, "t": 348.6052187852493}, {"d": 178.52796493069678, "t": 328.65965965402046}, {"d": 196.0477173062874, "t": 373.18588366415304}, {"d": 196.0477173062874, "t": 497.25012567517956}, {"d": 215.2867618018612, "t": 409.3258648095773}, {"d": 215.2867618018612, "t": 548.1483146132317}, {"d": 236.4138202880513, "t": 310.8401678172551}, {"d": 236.4138202880513, "t": 545.287756163805}, {"d": 259.61417207171644, "t": 553.1859979775032}, {"d": 259.61417207171644, "t": 349.393482833388}, {"d": 285.091278751648, "t": 484.4623512135837}, {"d": 285.091278751648, "t": 591.0869714662921}, {"d": 313.0685685286769, "t": 494.52453765891835}, {"d": 313.0685685286769, "t": 586.6067496791021}, {"d": 343.79139561815936, "t": 784.6255976991057}, {"d": 343.79139561815936, "t": 529.3985288526131}, {"d": 377.52919194842576, "t": 493.57920105308983}, {"d": 377.52919194842576, "t": 450.24463526043047}, {"d": 414.57783001507687, "t": 607.7426661461978}, {"d": 414.57783001507687, "t": 518.8106914849922}, {"d": 455.26221761280374, "t": 538.8962703492275}, {"d": 455.26221761280374, "t": 546.364106755049}, {"d": 499.93914719991255, "t": 651.8007714434333}, {"d": 499.93914719991255, "t": 472.637457195782}, {"d": 549.0004248838117, "t": 448.97118130805154}, {"d": 549.0004248838117, "t": 379.0462574390208}, {"d": 602.8763064679214, "t": 775.7247551094284}, {"d": 602.8763064679214, "t": 628.3715132648164}, {"d": 662.0392706933229, "t": 852.6529309778708}, {"d": 662.0392706933229, "t": 641.5334149911528}, {"d": 727.0081627655884, "t": 580.0728063380445}, {"d": 727.0081627655884, "t": 728.9828042509549}, {"d": 798.3527445045368, "t": 681.8258604392847}, {"d": 798.3527445045368, "t": 546.882848383718}, {"d": 876.6986910206589, "t": 608.3166330502603}, {"d": 876.6986910206589, "t": 999.575964091912}, {"d": 962.7330777378808, "t": 796.7123973452997}, {"d": 962.7330777378808, "t": 806.0226142295174}, {"d": 1057.2104058825516, "t": 735.3591035129239}, {"d": 1057.2104058825516, "t": 680.6043848849578}, {"d": 1160.959219280778, "t": 950.9763733934064}, {"d": 1160.959219280778, "t": 789.110414382864}, {"d": 1274.8893704918444, "t": 725.603839696729}, {"d": 1274.8893704918444, "t": 815.7026429949246}, {"d": 1400.0, "t": 734.0277297172074}, {"d": 1400.0, "t": 901.2111947210146}], "a_ms": 142.62650116040822, "b_ms": 19.431848948469842, "maxD": 1450}, "traj": {"paths": [[{"x": 200, "y": 760}, {"x": 200, "y": 760}, {"x": 201, "y": 760}, {"x": 202, "y": 759}, {"x": 203, "y": 758}, {"x": 206, "y": 757}, {"x": 209, "y": 756}, {"x": 213, "y": 754}, {"x": 218, "y": 751}, {"x": 224, "y": 748}, {"x": 232, "y": 745}, {"x": 240, "y": 740}, {"x": 250, "y": 735}, {"x": 261, "y": 730}, {"x": 274, "y": 724}, {"x": 288, "y": 717}, {"x": 303, "y": 710}, {"x": 320, "y": 703}, {"x": 338, "y": 694}, {"x": 357, "y": 685}, {"x": 378, "y": 675}, {"x": 401, "y": 666}, {"x": 425, "y": 655}, {"x": 450, "y": 644}, {"x": 476, "y": 632}, {"x": 503, "y": 619}, {"x": 533, "y": 608}, {"x": 563, "y": 595}, {"x": 594, "y": 582}, {"x": 626, "y": 569}, {"x": 659, "y": 554}, {"x": 693, "y": 540}, {"x": 728, "y": 527}, {"x": 763, "y": 512}, {"x": 799, "y": 497}, {"x": 836, "y": 483}, {"x": 873, "y": 469}, {"x": 909, "y": 455}, {"x": 946, "y": 440}, {"x": 983, "y": 427}, {"x": 1019, "y": 413}, {"x": 1055, "y": 399}, {"x": 1091, "y": 386}, {"x": 1125, "y": 373}, {"x": 1159, "y": 360}, {"x": 1192, "y": 349}, {"x": 1224, "y": 337}, {"x": 1255, "y": 326}, {"x": 1284, "y": 316}, {"x": 1312, "y": 305}, {"x": 1338, "y": 296}, {"x": 1363, "y": 288}, {"x": 1385, "y": 280}, {"x": 1406, "y": 273}, {"x": 1426, "y": 266}, {"x": 1443, "y": 260}, {"x": 1458, "y": 255}, {"x": 1472, "y": 250}, {"x": 1484, "y": 246}, {"x": 1494, "y": 242}, {"x": 1502, "y": 240}, {"x": 1509, "y": 238}, {"x": 1514, "y": 236}, {"x": 1518, "y": 235}, {"x": 1521, "y": 234}, {"x": 1522, "y": 233}, {"x": 1523, "y": 233}, {"x": 1523, "y": 233}, {"x": 1523, "y": 233}, {"x": 1523, "y": 233}, {"x": 1523, "y": 233}, {"x": 1521, "y": 234}, {"x": 1518, "y": 235}, {"x": 1514, "y": 237}, {"x": 1510, "y": 238}, {"x": 1504, "y": 240}, {"x": 1499, "y": 242}, {"x": 1494, "y": 245}, {"x": 1489, "y": 247}, {"x": 1485, "y": 247}, {"x": 1482, "y": 249}, {"x": 1481, "y": 250}, {"x": 1480, "y": 250}, {"x": 1480, "y": 250}], [{"x": 200, "y": 760}, {"x": 200, "y": 760}, {"x": 200, "y": 760}, {"x": 201, "y": 760}, {"x": 201, "y": 760}, {"x": 202, "y": 760}, {"x": 203, "y": 759}, {"x": 204, "y": 759}, {"x": 206, "y": 758}, {"x": 208, "y": 758}, {"x": 211, "y": 757}, {"x": 214, "y": 757}, {"x": 217, "y": 755}, {"x": 221, "y": 754}, {"x": 225, "y": 753}, {"x": 230, "y": 752}, {"x": 236, "y": 750}, {"x": 242, "y": 749}, {"x": 249, "y": 747}, {"x": 256, "y": 744}, {"x": 264, "y": 742}, {"x": 272, "y": 740}, {"x": 281, "y": 737}, {"x": 291, "y": 734}, {"x": 301, "y": 732}, {"x": 312, "y": 729}, {"x": 323, "y": 725}, {"x": 336, "y": 721}, {"x": 348, "y": 718}, {"x": 362, "y": 714}, {"x": 376, "y": 709}, {"x": 390, "y": 705}, {"x": 406, "y": 700}, {"x": 421, "y": 695}, {"x": 437, "y": 689}, {"x": 454, "y": 684}, {"x": 472, "y": 678}, {"x": 490, "y": 673}, {"x": 508, "y": 665}, {"x": 527, "y": 659}, {"x": 546, "y": 652}, {"x": 566, "y": 644}, {"x": 587, "y": 638}, {"x": 608, "y": 631}, {"x": 628, "y": 622}, {"x": 650, "y": 616}, {"x": 672, "y": 607}, {"x": 694, "y": 599}, {"x": 716, "y": 590}, {"x": 739, "y": 582}, {"x": 761, "y": 571}, {"x": 785, "y": 563}, {"x": 808, "y": 554}, {"x": 831, "y": 543}, {"x": 855, "y": 535}, {"x": 878, "y": 525}, {"x": 901, "y": 516}, {"x": 924, "y": 505}, {"x": 948, "y": 496}, {"x": 971, "y": 486}, {"x": 994, "y": 475}, {"x": 1017, "y": 466}, {"x": 1039, "y": 456}, {"x": 1062, "y": 447}, {"x": 1084, "y": 436}, {"x": 1106, "y": 427}, {"x": 1127, "y": 418}, {"x": 1147, "y": 408}, {"x": 1168, "y": 399}, {"x": 1188, "y": 390}, {"x": 1208, "y": 381}, {"x": 1226, "y": 371}, {"x": 1245, "y": 363}, {"x": 1263, "y": 355}, {"x": 1280, "y": 347}, {"x": 1296, "y": 339}, {"x": 1312, "y": 332}, {"x": 1327, "y": 324}, {"x": 1341, "y": 318}, {"x": 1355, "y": 311}, {"x": 1368, "y": 304}, {"x": 1380, "y": 299}, {"x": 1391, "y": 293}, {"x": 1402, "y": 288}, {"x": 1412, "y": 284}, {"x": 1422, "y": 279}, {"x": 1430, "y": 274}, {"x": 1437, "y": 271}, {"x": 1444, "y": 268}, {"x": 1451, "y": 265}, {"x": 1456, "y": 262}, {"x": 1461, "y": 259}, {"x": 1465, "y": 257}, {"x": 1469, "y": 256}, {"x": 1471, "y": 254}, {"x": 1474, "y": 253}, {"x": 1476, "y": 252}, {"x": 1477, "y": 251}, {"x": 1478, "y": 251}, {"x": 1479, "y": 250}, {"x": 1480, "y": 250}, {"x": 1480, "y": 250}, {"x": 1480, "y": 250}, {"x": 1480, "y": 250}]], "start": {"x": 200, "y": 760}, "target": {"x": 1480, "y": 250}, "w": 1600, "h": 900}, "name": "example", "date": "2026-08-16"};
+const NS="http://www.w3.org/2000/svg";
+const tip=document.getElementById("tip");
+function el(t,a){const e=document.createElementNS(NS,t);for(const k in(a||{}))e.setAttribute(k,a[k]);return e;}
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function showTip(ev,html){tip.innerHTML=html;tip.style.left=ev.clientX+"px";tip.style.top=ev.clientY+"px";tip.style.opacity=1;}
+function hideTip(){tip.style.opacity=0;}
+function hook(node,html){node.addEventListener("mousemove",e=>showTip(e,html));node.addEventListener("mouseleave",hideTip);}
+
+function kpis(){
+  document.getElementById("rptTitle").textContent = DATA.name || "Input style model";
+  document.getElementById("rptSub").textContent =
+    "Keystroke, click and mouse-motion profile. Generated " + (DATA.date || "");
+  const k=DATA.kpis, box=document.getElementById("kpis");
+  const rows=[["WPM",k.wpm,""],["Inter-key",k.median_gap,"ms"],["Key hold",k.median_dwell,"ms"],
+    ["Click",k.click_ms,"ms"],["Overshoot",k.overshoot_pct,"%"]];
+  for(const [l,v,u] of rows){
+    const d=document.createElement("div");d.className="tile";
+    d.innerHTML=`<div class="v">${v}<span class="u">${u}</span></div><div class="l">${l}</div>`;
+    box.appendChild(d);
+  }
+  document.getElementById("metatext").textContent=
+    `${DATA.meta.n_keys} keys, ${DATA.meta.n_clicks} clicks, ${DATA.meta.n_move_segments} move segments. Pause fence ${DATA.fence_ms} ms.`;
+}
+
+function histChart(id,H,unit,fenceMs){
+  const W=520,Hh=210,pl=42,pr=20,pt=12,pb=34;
+  const s=el("svg",{viewBox:`0 0 ${W} ${Hh}`}),iw=W-pl-pr,ih=Hh-pt-pb;
+  const max=Math.max(...H.counts,1),n=H.counts.length;
+  const x0=H.edges[0],x1=H.edges[H.edges.length-1];
+  const X=v=>pl+(v-x0)/(x1-x0)*iw, Y=v=>pt+ih-v/max*ih;
+  for(let g=0;g<=4;g++){const yy=pt+ih-g/4*ih;
+    s.appendChild(el("line",{x1:pl,y1:yy,x2:W-pr,y2:yy,stroke:css("--grid"),"stroke-width":1}));
+    const tx=el("text",{x:pl-6,y:yy+3,"text-anchor":"end",class:"ax"});tx.textContent=Math.round(max*g/4);s.appendChild(tx);}
+  const bw=iw/n;
+  for(let i=0;i<n;i++){
+    const h=H.counts[i]/max*ih, x=X(H.edges[i])+1, y=pt+ih-h;
+    const r=el("rect",{x:x,y:y,width:Math.max(bw-2,1),height:Math.max(h,0),rx:3,fill:css("--series-1")});
+    hook(r,`${H.edges[i]}-${H.edges[i+1]} ${unit}: <b>${H.counts[i]}</b>`);
+    s.appendChild(r);
+  }
+  for(let g=0;g<=5;g++){const xv=x0+(x1-x0)*g/5;const an=g==0?"start":(g==5?"end":"middle");const tx=el("text",{x:X(xv),y:Hh-14,"text-anchor":an,class:"ax"});tx.textContent=Math.round(xv);s.appendChild(tx);}
+  const at=el("text",{x:pl+iw/2,y:Hh-1,"text-anchor":"middle",class:"axtitle"});at.textContent=unit;s.appendChild(at);
+  if(fenceMs&&fenceMs<x1){const fx=X(fenceMs);
+    s.appendChild(el("line",{x1:fx,y1:pt,x2:fx,y2:pt+ih,stroke:css("--series-2"),"stroke-width":2,"stroke-dasharray":"4 3"}));
+    const ft=el("text",{x:fx+4,y:pt+10,class:"ax",fill:css("--series-2")});ft.textContent="fence";s.appendChild(ft);}
+  document.getElementById(id).innerHTML="";document.getElementById(id).appendChild(s);
+}
+
+function strip(){
+  const S=DATA.strip,W=1040,Hh=150,pl=8,pr=8,pt=16,pb=26;
+  const s=el("svg",{viewBox:`0 0 ${W} ${Hh}`}),iw=W-pl-pr,ih=Hh-pt-pb;
+  const T=S.total*1.02, X=t=>pl+t/T*iw;
+  const dmax=Math.max(...S.marks.map(m=>m.dwell),1);
+  s.appendChild(el("line",{x1:pl,y1:pt+ih,x2:W-pr,y2:pt+ih,stroke:css("--axis"),"stroke-width":1}));
+  let prev=null;
+  for(const m of S.marks){
+    const x=X(m.t), h=Math.max(m.dwell/dmax*ih,4), y=pt+ih-h;
+    if(m.pause&&prev!=null){s.appendChild(el("rect",{x:prev,y:pt,width:x-prev,height:ih,fill:css("--series-2"),opacity:0.10}));}
+    const col=m.pause?css("--series-2"):css("--series-1");
+    const r=el("rect",{x:x,y:y,width:3.4,height:h,rx:1.5,fill:col});
+    hook(r,`'${m.c}'  hold ${Math.round(m.dwell)} ms${m.gap!=null?`, gap ${Math.round(m.gap)} ms`:""}`);
+    s.appendChild(r);
+    const tc=el("text",{x:x+1.7,y:pt+ih+13,"text-anchor":"middle",class:"ax"});tc.textContent=m.c;s.appendChild(tc);
+    prev=x+3.4;
+  }
+  const at=el("text",{x:pl,y:12,class:"axtitle"});at.textContent="time (left to right), one column per keystroke";s.appendChild(at);
+  document.getElementById("strip").innerHTML="";document.getElementById("strip").appendChild(s);
+}
+
+function pauseBars(){
+  const P=DATA.pause_prob,order=["mid","word","clause","sentence"];
+  const rows=order.filter(k=>k in P);
+  const W=520,Hh=210,pl=64,pr=16,pt=10,pb=28;
+  const s=el("svg",{viewBox:`0 0 ${W} ${Hh}`}),iw=W-pl-pr,ih=Hh-pt-pb;
+  const max=Math.max(...rows.map(k=>P[k]),0.05)*1.18;
+  const bh=ih/rows.length*0.62, step=ih/rows.length;
+  for(let g=0;g<=4;g++){const xx=pl+iw*g/4;
+    s.appendChild(el("line",{x1:xx,y1:pt,x2:xx,y2:pt+ih,stroke:css("--grid"),"stroke-width":1}));
+    const tx=el("text",{x:xx,y:Hh-12,"text-anchor":"middle",class:"ax"});tx.textContent=Math.round(max*100*g/4)+"%";s.appendChild(tx);}
+  rows.forEach((k,i)=>{
+    const y=pt+i*step+(step-bh)/2, w=P[k]/max*iw;
+    const r=el("rect",{x:pl,y:y,width:Math.max(w,1),height:bh,rx:4,fill:css("--series-1")});
+    hook(r,`${k}: <b>${Math.round(P[k]*100)}%</b> chance of a pause`);s.appendChild(r);
+    const tl=el("text",{x:pl-8,y:y+bh/2+4,"text-anchor":"end",class:"ax"});tl.textContent=k;s.appendChild(tl);
+    const vl=el("text",{x:pl+w+6,y:y+bh/2+4,class:"ax",fill:css("--text-secondary")});vl.textContent=Math.round(P[k]*100)+"%";s.appendChild(vl);
+  });
+  document.getElementById("pause").innerHTML="";document.getElementById("pause").appendChild(s);
+}
+
+function fitts(){
+  const F=DATA.fitts,W=520,Hh=230,pl=44,pr=22,pt=12,pb=34;
+  const s=el("svg",{viewBox:`0 0 ${W} ${Hh}`}),iw=W-pl-pr,ih=Hh-pt-pb;
+  const tmax=Math.max(...F.points.map(p=>p.t))*1.05;
+  const X=d=>pl+d/F.maxD*iw, Y=t=>pt+ih-t/tmax*ih;
+  for(let g=0;g<=4;g++){const yy=pt+ih-g/4*ih;
+    s.appendChild(el("line",{x1:pl,y1:yy,x2:W-pr,y2:yy,stroke:css("--grid"),"stroke-width":1}));
+    const tx=el("text",{x:pl-6,y:yy+3,"text-anchor":"end",class:"ax"});tx.textContent=Math.round(tmax*g/4);s.appendChild(tx);}
+  for(const p of F.points){const c=el("circle",{cx:X(p.d),cy:Y(p.t),r:3,fill:css("--series-1"),opacity:0.55});
+    hook(c,`${Math.round(p.d)} px: <b>${Math.round(p.t)} ms</b>`);s.appendChild(c);}
+  let dpath="";for(let d=0;d<=F.maxD;d+=20){const t=F.a_ms+F.b_ms*Math.sqrt(d);dpath+=(d===0?"M":"L")+X(d)+" "+Y(t)+" ";}
+  s.appendChild(el("path",{d:dpath,fill:"none",stroke:css("--series-2"),"stroke-width":2.5}));
+  for(let g=0;g<=5;g++){const dv=F.maxD*g/5;const an=g==0?"start":(g==5?"end":"middle");const tx=el("text",{x:X(dv),y:Hh-14,"text-anchor":an,class:"ax"});tx.textContent=Math.round(dv);s.appendChild(tx);}
+  const at=el("text",{x:pl+iw/2,y:Hh-1,"text-anchor":"middle",class:"axtitle"});at.textContent="distance (px)   |   y: move time (ms)";s.appendChild(at);
+  document.getElementById("fitts").innerHTML="";document.getElementById("fitts").appendChild(s);
+}
+
+function traj(){
+  const Tj=DATA.traj,W=1040;
+  const all=[];Tj.paths.forEach(p=>p.forEach(q=>all.push(q)));all.push(Tj.start,Tj.target);
+  let minx=Math.min(...all.map(p=>p.x)),maxx=Math.max(...all.map(p=>p.x));
+  let miny=Math.min(...all.map(p=>p.y)),maxy=Math.max(...all.map(p=>p.y));
+  const px=(maxx-minx)*0.07+28, py=(maxy-miny)*0.14+28;
+  minx-=px;maxx+=px;miny-=py;maxy+=py;
+  const bw=maxx-minx,bh=maxy-miny,Hh=Math.max(W*bh/bw,300);
+  const X=x=>(x-minx)/bw*W, Y=y=>(y-miny)/bh*Hh;
+  const s=el("svg",{viewBox:`0 0 ${W} ${Hh.toFixed(0)}`});
+  s.appendChild(el("rect",{x:0,y:0,width:W,height:Hh,fill:css("--plane")}));
+  const cols=[css("--series-1"),css("--series-2")];
+  Tj.paths.forEach((p,i)=>{
+    let d="";p.forEach((q,j)=>{d+=(j===0?"M":"L")+X(q.x).toFixed(1)+" "+Y(q.y).toFixed(1)+" ";});
+    s.appendChild(el("path",{d:d,fill:"none",stroke:cols[i],"stroke-width":2.4,opacity:0.92}));
+  });
+  const S=Tj.start,G=Tj.target;
+  s.appendChild(el("circle",{cx:X(S.x),cy:Y(S.y),r:7,fill:"none",stroke:css("--muted"),"stroke-width":2}));
+  const st=el("text",{x:X(S.x)+12,y:Y(S.y)+4,class:"ax"});st.textContent="start";s.appendChild(st);
+  s.appendChild(el("circle",{cx:X(G.x),cy:Y(G.y),r:7,fill:css("--text-primary")}));
+  const gt=el("text",{x:X(G.x)-12,y:Y(G.y)-10,"text-anchor":"end",class:"ax"});gt.textContent="target";s.appendChild(gt);
+  document.getElementById("traj").innerHTML="";document.getElementById("traj").appendChild(s);
+}
+
+function renderAll(){
+  document.getElementById("kpis").innerHTML="";kpis();
+  histChart("intervals",DATA.interval_hist,"ms",DATA.fence_ms);
+  histChart("dwell",DATA.dwell_hist,"ms",null);
+  strip();pauseBars();fitts();traj();
+}
+document.getElementById("theme").addEventListener("click",()=>{
+  const r=document.documentElement,light=r.getAttribute("data-theme")==="light";
+  r.setAttribute("data-theme",light?"dark":"light");
+  document.getElementById("theme").textContent=light?"Light":"Dark";
+  renderAll();
+});
+renderAll();
+</script>
+</body>
+</html>

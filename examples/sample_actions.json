@@ -1,0 +1,10 @@
+[
+  {"type": "move",  "to": [1240, 720]},
+  {"type": "click", "button": "left"},
+  {"type": "type",  "text": "Sphinx of black quartz, judge my vow."},
+  {"type": "key",   "token": "Key.enter"},
+  {"type": "type",  "text": "The model types this in your rhythm."},
+  {"type": "pause", "seconds": 0.8},
+  {"type": "move",  "to": [360, 240]},
+  {"type": "click", "button": "left", "double": true}
+]

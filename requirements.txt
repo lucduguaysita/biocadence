@@ -1,0 +1,10 @@
+# Core dependency. Everything except the neural model runs on numpy alone.
+numpy>=1.23
+
+# Optional. Recording a real session needs pynput:
+#     pip install pynput
+#
+# The neural pointer model needs PyTorch. Install the CPU or CUDA build that
+# matches your machine (see the README's Install section), for example:
+#     pip install torch --index-url https://download.pytorch.org/whl/cpu     (CPU)
+#     pip install torch --index-url https://download.pytorch.org/whl/cu121   (Nvidia GPU)

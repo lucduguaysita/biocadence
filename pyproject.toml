@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biocadence"
+version = "0.1.0"
+description = "Model and replay your own human input style (keystroke, click and mouse dynamics), with behavioral fingerprinting."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Luc Duguay" }]
+keywords = [
+    "behavioral-biometrics", "keystroke-dynamics", "mouse-dynamics",
+    "input-synthesis", "human-input", "fingerprint", "automation",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+]
+dependencies = ["numpy>=1.23"]
+
+[project.optional-dependencies]
+# Recording a real session (keyboard/mouse capture).
+record = ["pynput>=1.7"]
+# The neural pointer model needs PyTorch. Install the CPU or CUDA build that
+# matches your machine (see the README); this extra pulls the default wheel.
+neural = ["torch>=2.2"]
+
+[project.scripts]
+biocadence = "biocadence.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/lucduguaysita/biocadence"
+Issues = "https://github.com/lucduguaysita/biocadence/issues"
+
+[tool.setuptools.packages.find]
+include = ["biocadence*"]

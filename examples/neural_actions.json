@@ -1,0 +1,7 @@
+[
+  {"type": "move",  "to": [1240, 720]},
+  {"type": "click", "to": [1240, 720]},
+  {"type": "pause", "seconds": 0.6},
+  {"type": "move",  "to": [360, 240]},
+  {"type": "click", "to": [360, 240]}
+]
